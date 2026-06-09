@@ -1,0 +1,17 @@
+# Secrets
+.env
+.env.*
+*.pem
+credentials.json
+
+# Dependencies & build
+node_modules/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

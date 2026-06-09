@@ -1,0 +1,70 @@
+---
+description: Initialize and set up a new git repository when requested
+alwaysApply: true
+---
+
+# Create Git Repository
+
+When the user asks to create, initialize, or set up a git repository, follow this workflow.
+
+## Before initializing
+
+1. Run `git status` to confirm the directory is not already a repo.
+2. If `.git` exists, report that and skip `git init` unless the user wants to reinitialize.
+3. Create or update `.gitignore` before the first commit — exclude secrets, OS junk, and build artifacts.
+
+Common `.gitignore` entries:
+
+```
+.env
+.env.*
+*.pem
+credentials.json
+node_modules/
+dist/
+build/
+.DS_Store
+Thumbs.db
+```
+
+Add project-specific patterns (e.g., `__pycache__/`, `.venv/`, `*.log`) based on the stack.
+
+## Initialize
+
+1. Run `git init` in the project root.
+2. NEVER update the git config (`git config user.*`, `core.*`, etc.).
+3. Do not commit files that likely contain secrets.
+
+## Initial commit
+
+1. Run in parallel: `git status`, `git diff`, and inspect untracked files.
+2. Stage all relevant project files; exclude secrets and IDE-only noise unless the user wants them.
+3. If there are changes to commit, create an initial commit with a clear message:
+
+```bash
+git commit -m "$(cat <<'EOF'
+Initial commit.
+
+EOF
+)"
+```
+
+4. Run `git status` after committing to confirm success.
+5. If a pre-commit hook fails, fix the issue and create a **new** commit — do not amend a failed commit.
+
+## Remote (optional)
+
+Only add a remote or push when the user explicitly asks:
+
+```bash
+git remote add origin <url>
+git branch -M main
+git push -u origin main
+```
+
+- NEVER force-push to `main` or `master`.
+- NEVER run destructive commands (`push --force`, `hard reset`, etc.) unless explicitly requested.
+
+## After setup
+
+Tell the user what was done: repo initialized, `.gitignore` created/updated, initial commit hash (if any), and remote status.
