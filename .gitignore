@@ -8,6 +8,7 @@ credentials.json
 node_modules/
 dist/
 build/
+.wrangler/
 
 # OS files
 .DS_Store

@@ -1,0 +1,16 @@
+{
+  "name": "liu-stuff-blog",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "liu-stuff-blog-db",
+      "database_id": "7ebccbff-64c8-46f2-86b1-eff57a5c292c"
+    }
+  ]
+}
