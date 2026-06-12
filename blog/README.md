@@ -37,7 +37,15 @@ npx wrangler deploy
 openssl rand -hex 32 | npx wrangler secret put SECRET_KEY
 ```
 
-Live URL: `https://liu-stuff-blog.<your-subdomain>.workers.dev`
+Live URL: `https://liu-stuff-blog.dazelu20.workers.dev`
+
+## Rich post editor
+
+- WYSIWYG editor with a 3-row toolbar (like a classic rich text editor)
+- Bold, italic, underline, strikethrough, fonts, sizes, text & highlight colors
+- Headings, alignment, bullet/numbered lists, indent, links, images
+- HTML source view, fullscreen, undo/redo
+- Image uploads (JPEG, PNG, WebP up to 2 MB), stored in D1 — no R2 required
 
 ## Features (task-11 contract)
 

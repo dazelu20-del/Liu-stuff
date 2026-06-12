@@ -1,0 +1,206 @@
+.editor-page {
+  max-width: 900px;
+}
+
+.post-editor-section .hint {
+  margin-bottom: 1rem;
+}
+
+.editor-body-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.editor-body-label {
+  font-weight: 600;
+}
+
+.editor-shell {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-right: 0.5rem;
+  border-right: 1px solid var(--color-border);
+}
+
+.toolbar-group:last-child {
+  border-right: none;
+}
+
+.toolbar-btn,
+.toolbar-select {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolbar-upload {
+  display: inline-flex;
+  align-items: center;
+}
+
+.editor-blocks {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 280px;
+}
+
+.editor-block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "handle body"
+    ". controls";
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  background: color-mix(in srgb, var(--color-bg) 40%, var(--color-surface));
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.editor-block:hover,
+.editor-block.dragging {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.block-drag-handle {
+  grid-area: handle;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  font-size: 1rem;
+  padding: 0.25rem;
+}
+
+.block-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.block-controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.block-align-select,
+.block-width-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.block-remove-btn {
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  background: transparent;
+  color: var(--color-danger);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.text-block-editor {
+  min-height: 5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--color-surface);
+  line-height: 1.7;
+  outline: none;
+  font-size: 1rem;
+  font-family: var(--font-sans);
+}
+
+.text-block-editor:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* Live typing size — applies to new text in the active block */
+.text-block-editor[data-size="small"] {
+  font-size: 0.8rem;
+}
+
+.text-block-editor[data-size="large"] {
+  font-size: 1.5rem;
+}
+
+.text-block-editor[data-size="xlarge"] {
+  font-size: 2rem;
+}
+
+.text-block-editor[data-font="serif"] {
+  font-family: var(--font-serif);
+}
+
+.text-block-editor[data-font="mono"] {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+}
+
+/* Inline spans inside the editor */
+.text-block-editor .text-small {
+  font-size: 0.8rem;
+}
+
+.text-block-editor .text-large {
+  font-size: 1.5rem;
+}
+
+.text-block-editor .text-xlarge {
+  font-size: 2rem;
+}
+
+.text-block-editor .text-font-serif {
+  font-family: var(--font-serif);
+}
+
+.text-block-editor .text-font-mono {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+}
+
+.media-block-preview img,
+.media-block-preview video {
+  display: block;
+  width: 100%;
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.editor-actions {
+  margin-top: 1rem;
+}
+
+@media (max-width: 360px) {
+  .toolbar-group {
+    border-right: none;
+    width: 100%;
+  }
+}

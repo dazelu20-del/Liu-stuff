@@ -32,6 +32,7 @@ describe("blog app", () => {
   beforeEach(async () => {
     await env.DB.exec("DELETE FROM reactions");
     await env.DB.exec("DELETE FROM comments");
+    await env.DB.exec("DELETE FROM media_assets");
     await env.DB.exec("DELETE FROM posts");
     await env.DB.exec("DELETE FROM users");
   });

@@ -7,8 +7,11 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function truncatePreview(text: string, max = 150): string {
-  const trimmed = text.trim();
+import { previewText } from "./content";
+
+export function truncatePreview(text: string, max = 150, rich = false): string {
+  const source = rich ? previewText(text) : text;
+  const trimmed = source.trim();
   if (trimmed.length <= max) return trimmed;
   const slice = trimmed.slice(0, max);
   const lastSpace = slice.lastIndexOf(" ");

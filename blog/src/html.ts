@@ -1,3 +1,4 @@
+import { editorInitialPayload, renderPostBodyHtml } from "./content";
 import { escapeHtml, truncatePreview } from "./util";
 import type { Comment, Post, SessionData } from "./types";
 
@@ -31,7 +32,7 @@ function layout(title: string, body: string, session: SessionData | null): strin
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=13" />
   <script src="/theme.js" defer></script>
 </head>
 <body>
@@ -55,7 +56,7 @@ function renderPostCard(post: Post): string {
   return `<article class="post-card">
     <h2><a href="/post/${post.id}">${escapeHtml(post.title)}</a></h2>
     <p class="post-meta">By ${escapeHtml(post.author ?? "unknown")} · ${escapeHtml(post.created_at)}</p>
-    <p class="post-preview">${escapeHtml(truncatePreview(post.body))}</p>
+    <p class="post-preview">${escapeHtml(truncatePreview(post.body, 150, true))}</p>
     <a class="read-more" href="/post/${post.id}">Read more →</a>
   </article>`;
 }
@@ -113,7 +114,7 @@ export function renderPostPage(
       <h1>${escapeHtml(post.title)} ${edited}</h1>
       <p class="post-meta">By ${escapeHtml(post.author ?? "unknown")} · ${escapeHtml(post.created_at)}</p>
       ${authorActions}
-      <div class="post-body">${escapeHtml(post.body).replace(/\n/g, "<br />")}</div>
+      <div class="post-body">${renderPostBodyHtml(post.body)}</div>
       ${reactionBlock}
       <section class="comments"><h2>Comments</h2>${commentList}</section>
     </article>
@@ -171,6 +172,26 @@ export function renderAuthForm(
   );
 }
 
+function editorLayout(title: string, body: string, session: SessionData): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <link rel="stylesheet" href="/style.css?v=13" />
+  <link rel="stylesheet" href="/rich-editor.css?v=13" />
+  <script src="/theme.js" defer></script>
+</head>
+<body>
+  ${nav(session)}
+  <main class="container page editor-page">${body}</main>
+  <footer class="site-footer"><div class="container">Built with Cloudflare Workers + D1</div></footer>
+  <script src="/rich-editor.js?v=13" defer></script>
+</body>
+</html>`;
+}
+
 export function renderPostForm(
   mode: "new" | "edit",
   session: SessionData,
@@ -183,16 +204,102 @@ export function renderPostForm(
       ? `<ul class="errors">${errors.map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`
       : "";
 
-  return layout(
+  const initialPayload = escapeHtml(JSON.stringify(editorInitialPayload(post?.body ?? "")));
+
+  return editorLayout(
     mode === "new" ? "New post" : "Edit post",
-    `<section class="form-page">
+    `<section class="form-page post-editor-section">
       <h1>${mode === "new" ? "New post" : "Edit post"}</h1>
+      <p class="hint">Write your post body below. Add an optional image that appears beside the text when published.</p>
       ${errorBlock}
-      <form method="post" action="${action}" class="form">
+      <form method="post" action="${action}" class="form post-editor-form" id="post-editor-form"
+            data-csrf="${escapeHtml(session.csrfToken)}">
         <input type="hidden" name="csrf_token" value="${escapeHtml(session.csrfToken)}" />
         <label>Title<input name="title" maxlength="200" value="${escapeHtml(post?.title ?? "")}" required /></label>
-        <label>Body<textarea name="body" maxlength="20000" required>${escapeHtml(post?.body ?? "")}</textarea></label>
-        <button type="submit" class="btn btn-primary">Save</button>
+
+        <div class="editor-body-field">
+          <span class="editor-body-label">Body</span>
+          <div class="rte" id="rich-editor">
+            <div class="rte-toolbar" role="toolbar" aria-label="Formatting">
+              <div class="rte-row">
+                <button type="button" class="rte-btn" data-cmd="bold" title="Bold"><strong>B</strong></button>
+                <button type="button" class="rte-btn" data-cmd="italic" title="Italic"><em>I</em></button>
+                <button type="button" class="rte-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+                <button type="button" class="rte-btn" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+                <select class="rte-select" data-cmd="fontName" title="Font">
+                  <option value="Segoe UI">Segoe UI</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                </select>
+                <select class="rte-select" data-cmd="fontSize" title="Font size">
+                  <option value="2">10 pt</option>
+                  <option value="3" selected>12 pt</option>
+                  <option value="4">14 pt</option>
+                  <option value="5">16 pt</option>
+                  <option value="6">18 pt</option>
+                  <option value="7">24 pt</option>
+                </select>
+                <div class="rte-color-wrap" id="rte-color-wrap">
+                  <button type="button" class="rte-color-trigger" id="rte-color-trigger" title="Text color">
+                    <span class="rte-color-letter">A</span>
+                    <span class="rte-color-underline" id="rte-color-underline"></span>
+                  </button>
+                  <div class="rte-color-menu" id="rte-color-menu" hidden>
+                    <div class="rte-color-swatches" id="rte-color-swatches"></div>
+                    <label class="rte-color-custom-label">
+                      Custom
+                      <input type="color" id="rte-color-custom" value="#1a1a1a" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="rte-row">
+                <select class="rte-select rte-select-wide" data-cmd="formatBlock" title="Paragraph format">
+                  <option value="p">Paragraph</option>
+                  <option value="h1">Heading 1</option>
+                  <option value="h2">Heading 2</option>
+                  <option value="h3">Heading 3</option>
+                </select>
+                <select class="rte-select" data-cmd="justify" title="Alignment">
+                  <option value="left">Align left</option>
+                  <option value="center">Align center</option>
+                  <option value="right">Align right</option>
+                  <option value="full">Justify</option>
+                </select>
+                <button type="button" class="rte-btn" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+                <button type="button" class="rte-btn" data-cmd="insertUnorderedList" title="Bullet list">•</button>
+                <button type="button" class="rte-btn" data-cmd="outdent" title="Decrease indent">⇤</button>
+                <button type="button" class="rte-btn" data-cmd="indent" title="Increase indent">⇥</button>
+                <button type="button" class="rte-btn" data-cmd="createLink" title="Link selected text">Link</button>
+              </div>
+              <div class="rte-row">
+                <button type="button" class="rte-btn" data-cmd="code" title="HTML source">&lt;/&gt;</button>
+                <button type="button" class="rte-btn" data-cmd="fullscreen" title="Fullscreen">⛶</button>
+                <button type="button" class="rte-btn" data-cmd="undo" title="Undo">↶</button>
+                <button type="button" class="rte-btn" data-cmd="redo" title="Redo">↷</button>
+              </div>
+            </div>
+            <div id="rte-body" class="rte-content" contenteditable="true" aria-label="Post body"></div>
+            <textarea id="rte-source" class="rte-source" hidden aria-label="HTML source"></textarea>
+          </div>
+        </div>
+
+        <div class="post-image-field">
+          <span class="editor-body-label">Post images (optional)</span>
+          <p class="hint post-image-hint">Separate from the body. Use L/R on each image to place it left or right of your text.</p>
+          <div class="post-image-panel" id="post-image-panel">
+            <div class="post-image-gallery" id="post-image-gallery" aria-live="polite"></div>
+            <input type="file" id="post-image-input" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden />
+          </div>
+        </div>
+
+        <textarea id="initial-document" class="rte-initial-data" hidden aria-hidden="true">${initialPayload}</textarea>
+        <input type="hidden" name="body" id="post-document" value="${initialPayload}" />
+        <div class="editor-actions">
+          <button type="submit" class="btn btn-primary">Publish</button>
+        </div>
       </form>
     </section>`,
     session

@@ -32,7 +32,7 @@ export function validateTitle(title: string): string | null {
 export function validateBody(body: string): string | null {
   const trimmed = body.trim();
   if (!trimmed) return "Body cannot be empty.";
-  if (trimmed.length > 20000) return "Body must be at most 20000 characters.";
+  if (trimmed.length > 50000) return "Post content is too large.";
   return null;
 }
 

@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import type { D1Database } from "@cloudflare/workers-types";
 import type { Env, SessionData } from "./types";
 import {
   createSession,
@@ -44,6 +45,15 @@ import {
   withSecurityHeaders,
 } from "./security";
 import {
+  normalizeDocumentV1,
+  parsePostBodyV1,
+  normalizeSideImages,
+  stripEmbeddedImages,
+  serializeDocumentV1,
+} from "./content";
+import { serveMedia, validateAndUpload, verifyDocumentMedia, verifySideImages } from "./media";
+import { htmlHasContent, sanitizeHtml } from "./sanitize";
+import {
   normalizeSearchQuery,
   validateBody,
   validateComment,
@@ -53,7 +63,7 @@ import {
   validateTitle,
   validateUsername,
 } from "./validation";
-import { isSecureRequest } from "./util";
+import { escapeHtml, isSecureRequest } from "./util";
 
 const app = new Hono<{ Bindings: Env; Variables: { session?: SessionData; parsedBody?: Record<string, string | File> } }>();
 
@@ -184,6 +194,56 @@ app.get("/new", async (c) => {
   return respondHtml(c,renderPostForm("new", session));
 });
 
+async function parseAndValidatePostBody(
+  db: D1Database,
+  raw: string,
+  authorId: number
+): Promise<{ serialized: string } | string[]> {
+  const sizeErr = validateBody(raw);
+  if (sizeErr) return [sizeErr];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const text = raw.trim();
+    const sanitized = await sanitizeHtml(
+      text ? `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>` : "<p><br></p>"
+    );
+    return { serialized: JSON.stringify({ v: 2, html: sanitized }) };
+  }
+
+  const doc = parsed as Record<string, unknown>;
+  if (doc.v === 2 && typeof doc.html === "string") {
+    const sideImages = normalizeSideImages(doc.sideImages, doc.sideImage);
+    const sanitized = stripEmbeddedImages(await sanitizeHtml(doc.html));
+    if (!htmlHasContent(sanitized) && sideImages.length === 0) return ["Post body cannot be empty."];
+    const mediaErr = await verifySideImages(db, sideImages, authorId);
+    if (mediaErr) return [mediaErr];
+    const payload: { v: 2; html: string; sideImages?: { id: number; side: string }[] } = {
+      v: 2,
+      html: sanitized,
+    };
+    if (sideImages.length > 0) payload.sideImages = sideImages;
+    return { serialized: JSON.stringify(payload) };
+  }
+
+  const normalized = normalizeDocumentV1(parsed);
+  if (typeof normalized === "string") return [normalized];
+  const mediaErr = await verifyDocumentMedia(db, normalized.blocks, authorId);
+  if (mediaErr) return [mediaErr];
+  const html = await sanitizeHtml(
+    normalized.blocks
+      .map((b) => {
+        if (b.type === "text") {
+          return `<p>${b.runs.map((r) => r.text).join("")}</p>`;
+        }
+        return `<p><img src="/media/${b.id}" alt="" /></p>`;
+      })
+      .join("")
+  );
+  return { serialized: JSON.stringify({ v: 2, html }) };
+}
+
 app.post("/new", async (c) => {
   const csrfFail = await requireCsrf(c, false);
   if (csrfFail) return csrfFail;
@@ -192,9 +252,13 @@ app.post("/new", async (c) => {
   const body = c.get("parsedBody") as Record<string, string | File>;
   const title = String(body.title ?? "");
   const postBody = String(body.body ?? "");
-  const errors = [validateTitle(title), validateBody(postBody)].filter(Boolean) as string[];
-  if (errors.length) return respondHtml(c,renderPostForm("new", session, undefined, errors), 400);
-  const id = await createPost(c.env.DB, session.userId, title.trim(), postBody.trim());
+  const errors: string[] = [];
+  const titleErr = validateTitle(title);
+  if (titleErr) errors.push(titleErr);
+  const docResult = await parseAndValidatePostBody(c.env.DB, postBody, session.userId);
+  if (Array.isArray(docResult)) errors.push(...docResult);
+  if (errors.length) return respondHtml(c, renderPostForm("new", session, undefined, errors), 400);
+  const id = await createPost(c.env.DB, session.userId, title.trim(), docResult.serialized);
   return c.redirect(`/post/${id}`, 302);
 });
 
@@ -220,9 +284,13 @@ app.post("/edit/:id", async (c) => {
   const body = c.get("parsedBody") as Record<string, string | File>;
   const title = String(body.title ?? "");
   const postBody = String(body.body ?? "");
-  const errors = [validateTitle(title), validateBody(postBody)].filter(Boolean) as string[];
-  if (errors.length) return respondHtml(c,renderPostForm("edit", session, post, errors), 400);
-  await updatePost(c.env.DB, id, session.userId, title.trim(), postBody.trim());
+  const errors: string[] = [];
+  const titleErr = validateTitle(title);
+  if (titleErr) errors.push(titleErr);
+  const docResult = await parseAndValidatePostBody(c.env.DB, postBody, session.userId);
+  if (Array.isArray(docResult)) errors.push(...docResult);
+  if (errors.length) return respondHtml(c, renderPostForm("edit", session, post, errors), 400);
+  await updatePost(c.env.DB, id, session.userId, title.trim(), docResult.serialized);
   return c.redirect(`/post/${id}`, 302);
 });
 
@@ -323,6 +391,38 @@ app.post("/api/post/:id/react", async (c) => {
   const counts = await getReactionCounts(c.env.DB, id);
   return withSecurityHeaders(
     Response.json({ ok: true, reaction, counts })
+  );
+});
+
+app.get("/media/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const response = await serveMedia(c.env.DB, id);
+  if (!response) return respondHtml(c, "<p>Not found</p>", 404);
+  return withSecurityHeaders(response);
+});
+
+app.post("/api/upload", async (c) => {
+  const session = await getSession(c);
+  const form = await c.req.parseBody();
+  const headerToken = c.req.header("X-CSRF-Token");
+  const formToken = typeof form.csrf_token === "string" ? form.csrf_token : null;
+  const token = headerToken || formToken;
+  if (!validateCsrf(session, token)) {
+    return jsonError("Invalid or missing CSRF token.", 400);
+  }
+  const authed = await requireLoginJson(c);
+  if (authed instanceof Response) return authed;
+
+  const file = form.file;
+  if (!(file instanceof File)) {
+    return jsonError("Please choose a file to upload.", 400);
+  }
+
+  const result = await validateAndUpload(c.env.DB, authed.userId, file);
+  if (typeof result === "string") return jsonError(result, 400);
+
+  return withSecurityHeaders(
+    Response.json({ ok: true, id: result.id, url: result.url })
   );
 });
 
